@@ -389,19 +389,19 @@ export default function Home() {
 
             {/* Grid de productos — scrollable */}
             <div className="flex-1 overflow-auto p-3">
-              <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4">
+              <div className="grid grid-cols-3 gap-3">
                 {PRODUCTS_BY_CATEGORY[category].map((p) => (
                   <button
                     key={p.id}
                     onClick={() => add(p.id)}
-                    className={`flex flex-col justify-between rounded-2xl border p-5 min-h-[120px] text-left transition active:scale-[0.97] ${
+                    className={`flex flex-col justify-between rounded-2xl border p-6 min-h-[220px] text-left transition active:scale-[0.97] ${
                       colorMode === "color"
                         ? productColor(p.id)
                         : "bg-zinc-50 hover:bg-zinc-100 border-zinc-200 dark:border-zinc-800 dark:bg-zinc-900/40 dark:hover:bg-zinc-900"
                     }`}
                   >
-                    <div className="text-lg font-semibold leading-snug md:text-xl">{p.name}</div>
-                    <div className={`mt-3 text-base md:text-lg font-medium ${colorMode === "color" ? "opacity-70" : "text-zinc-600 dark:text-zinc-400"}`}>
+                    <div className="text-2xl font-semibold leading-snug">{p.name}</div>
+                    <div className={`mt-4 text-xl font-medium ${colorMode === "color" ? "opacity-70" : "text-zinc-600 dark:text-zinc-400"}`}>
                       {eur(p.price)}
                     </div>
                   </button>
