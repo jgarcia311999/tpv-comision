@@ -570,18 +570,6 @@ export default function Home() {
 
               <div className="mt-3 grid grid-cols-2 gap-3">
                 <button
-                  onClick={cobrar}
-                  disabled={total <= 0}
-                  type="button"
-                  className={`rounded-xl px-4 py-4 text-base font-semibold transition ${
-                    colorMode === "color"
-                      ? "bg-zinc-900 text-white enabled:hover:bg-zinc-800 disabled:bg-zinc-200 disabled:text-zinc-400"
-                      : "bg-zinc-900 text-white enabled:hover:bg-zinc-800 disabled:bg-zinc-700 disabled:text-zinc-500 dark:bg-white dark:text-zinc-900 dark:enabled:hover:bg-zinc-200 dark:disabled:bg-zinc-800 dark:disabled:text-zinc-500"
-                  }`}
-                >
-                  Cobrar
-                </button>
-                <button
                   onClick={() => {
                     if (lines.length === 0) return;
                     if (window.confirm("¿Borrar toda la cuenta?")) clear();
@@ -594,6 +582,18 @@ export default function Home() {
                   }`}
                 >
                   Borrar todo
+                </button>
+                <button
+                  onClick={cobrar}
+                  disabled={total <= 0}
+                  type="button"
+                  className={`rounded-xl px-4 py-6 text-xl font-bold transition ${
+                    colorMode === "color"
+                      ? "bg-zinc-900 text-white enabled:hover:bg-zinc-800 disabled:bg-zinc-200 disabled:text-zinc-400"
+                      : "bg-zinc-900 text-white enabled:hover:bg-zinc-800 disabled:bg-zinc-700 disabled:text-zinc-500 dark:bg-white dark:text-zinc-900 dark:enabled:hover:bg-zinc-200 dark:disabled:bg-zinc-800 dark:disabled:text-zinc-500"
+                  }`}
+                >
+                  Cobrar
                 </button>
               </div>
 
