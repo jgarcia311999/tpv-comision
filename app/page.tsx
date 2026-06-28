@@ -387,14 +387,17 @@ export default function Home() {
               ))}
             </div>
 
-            {/* Grid de productos — scrollable */}
-            <div className="flex-1 overflow-auto p-3">
-              <div className="grid grid-cols-3 gap-3">
+            {/* Grid de productos — sin scroll, ocupa el espacio disponible */}
+            <div className="flex-1 overflow-hidden p-3">
+              <div
+                className="h-full grid grid-cols-3 gap-3"
+                style={{ gridTemplateRows: `repeat(${Math.ceil(PRODUCTS_BY_CATEGORY[category].length / 3)}, minmax(0, 1fr))` }}
+              >
                 {PRODUCTS_BY_CATEGORY[category].map((p) => (
                   <button
                     key={p.id}
                     onClick={() => add(p.id)}
-                    className={`flex flex-col justify-between rounded-2xl border p-6 min-h-[220px] text-left transition active:scale-[0.97] ${
+                    className={`flex flex-col justify-between rounded-2xl border p-6 text-left transition active:scale-[0.97] ${
                       colorMode === "color"
                         ? productColor(p.id)
                         : "bg-zinc-50 hover:bg-zinc-100 border-zinc-200 dark:border-zinc-800 dark:bg-zinc-900/40 dark:hover:bg-zinc-900"
