@@ -23,6 +23,11 @@ type Debt = {
   total: number;
 };
 
+type CajaSession = {
+  openedAt: number;
+  float: number;
+};
+
 type Category = "bebidas" | "comidas" | "mercha";
 
 const CATEGORY_LABELS: Record<Category, string> = {
@@ -100,9 +105,9 @@ function newId() {
 
 function loadInitialState() {
   if (typeof window === "undefined") {
-    return { cart: {} as Record<string, number>, colorMode: "dark" as "dark" | "color", sales: [] as Sale[], debts: [] as Debt[] };
+    return { cart: {} as Record<string, number>, colorMode: "dark" as "dark" | "color", sales: [] as Sale[], debts: [] as Debt[], cajaSession: null as CajaSession | null };
   }
-  const saved = safeParse<{ cart: Record<string, number>; colorMode: "dark" | "color"; sales: Sale[]; debts: Debt[] }>(
+  const saved = safeParse<{ cart: Record<string, number>; colorMode: "dark" | "color"; sales: Sale[]; debts: Debt[]; cajaSession: CajaSession | null }>(
     localStorage.getItem(STORAGE_KEY)
   );
   return {
@@ -110,6 +115,7 @@ function loadInitialState() {
     colorMode: saved?.colorMode === "dark" || saved?.colorMode === "color" ? saved.colorMode : "dark",
     sales: Array.isArray(saved?.sales) ? saved!.sales : [],
     debts: Array.isArray(saved?.debts) ? saved!.debts : [],
+    cajaSession: saved?.cajaSession?.openedAt && saved?.cajaSession?.float != null ? saved.cajaSession : null,
   };
 }
 
@@ -142,6 +148,9 @@ export default function Home() {
   const [historyTab, setHistoryTab] = useState<"sales" | "debts">("sales");
   const [historyOpen, setHistoryOpen] = useState(false);
   const [category, setCategory] = useState<Category>("bebidas");
+  const [cajaSession, setCajaSession] = useState<CajaSession | null>(() => initial.cajaSession);
+  const [cajaModalOpen, setCajaModalOpen] = useState(false);
+  const [cajaFloatInput, setCajaFloatInput] = useState("");
 
   // Fix: sync dark class with colorMode so dark: Tailwind variants work
   useEffect(() => {
@@ -149,8 +158,8 @@ export default function Home() {
   }, [colorMode]);
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ cart, colorMode, sales, debts }));
-  }, [cart, colorMode, sales, debts]);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ cart, colorMode, sales, debts, cajaSession }));
+  }, [cart, colorMode, sales, debts, cajaSession]);
 
   const lines = useMemo(
     () =>
@@ -312,6 +321,34 @@ export default function Home() {
     return joined.length <= 60 ? joined : joined.slice(0, 57) + "…";
   };
 
+  // Ventas registradas desde que se abrió la caja
+  const sessionSales = useMemo(
+    () => (cajaSession ? sales.filter((s) => s.timestamp >= cajaSession.openedAt) : []),
+    [sales, cajaSession]
+  );
+  const sessionTotal = useMemo(
+    () => sessionSales.reduce((a, s) => a + s.total, 0),
+    [sessionSales]
+  );
+
+  const cajaFloatNumber = useMemo(() => {
+    const n = Number(cajaFloatInput.replace(",", "."));
+    return Number.isFinite(n) && n >= 0 ? n : 0;
+  }, [cajaFloatInput]);
+
+  const openCaja = () => {
+    if (cajaFloatNumber < 0) return;
+    setCajaSession({ openedAt: Date.now(), float: cajaFloatNumber });
+    setCajaModalOpen(false);
+    setCajaFloatInput("");
+  };
+
+  const closeCaja = () => {
+    if (!window.confirm("¿Cerrar la caja? Esto finaliza la sesión actual.")) return;
+    setCajaSession(null);
+    setCajaModalOpen(false);
+  };
+
   return (
     <div
       className={`min-h-screen transition-colors ${
@@ -323,16 +360,42 @@ export default function Home() {
       <main className="mx-auto w-full max-w-7xl px-3 py-4 md:px-6 md:py-6">
         <div className="flex flex-col gap-2">
           <h1 className="text-2xl md:text-3xl font-semibold tracking-tight">TPV Comisión Matet</h1>
-          <div className="mt-2 flex items-center gap-2">
-            <span className={`text-xs ${colorMode === "color" ? "text-black" : "text-zinc-600"}`}>
-              Modo pantalla
-            </span>
-            <button
-              onClick={() => setColorMode(colorMode === "dark" ? "color" : "dark")}
-              className="rounded-full border border-zinc-200 px-3 py-1.5 text-xs font-medium transition hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-900"
-            >
-              {colorMode === "dark" ? "Cambiar a colores" : "Cambiar a oscuro"}
-            </button>
+          <div className="mt-2 flex flex-wrap items-center gap-3">
+            <div className="flex items-center gap-2">
+              <span className={`text-xs ${colorMode === "color" ? "text-black" : "text-zinc-600"}`}>
+                Modo pantalla
+              </span>
+              <button
+                onClick={() => setColorMode(colorMode === "dark" ? "color" : "dark")}
+                className="rounded-full border border-zinc-200 px-3 py-1.5 text-xs font-medium transition hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-900"
+              >
+                {colorMode === "dark" ? "Cambiar a colores" : "Cambiar a oscuro"}
+              </button>
+            </div>
+
+            {/* Indicador de caja */}
+            {cajaSession ? (
+              <button
+                type="button"
+                onClick={() => setCajaModalOpen(true)}
+                className="flex items-center gap-2 rounded-full border border-emerald-400 bg-emerald-50 px-3 py-1.5 text-xs font-medium text-emerald-700 transition hover:bg-emerald-100 dark:border-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400 dark:hover:bg-emerald-950/60"
+              >
+                <span className="h-2 w-2 rounded-full bg-emerald-500" />
+                Caja abierta · {eur(cajaSession.float)} cambio
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => { setCajaFloatInput(""); setCajaModalOpen(true); }}
+                className={`rounded-full border px-3 py-1.5 text-xs font-medium transition ${
+                  colorMode === "color"
+                    ? "border-zinc-300 text-black hover:bg-zinc-100"
+                    : "border-zinc-200 text-zinc-600 hover:bg-zinc-50 dark:border-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-900"
+                }`}
+              >
+                Abrir caja
+              </button>
+            )}
           </div>
           <p className={`text-sm ${colorMode === "color" ? "text-black" : "text-zinc-600 dark:text-zinc-400"}`}>
             Pulsa productos para añadir. Ajusta cantidades y cobra.
@@ -933,6 +996,128 @@ export default function Home() {
                       ))
                     )}
                   </div>
+                </>
+              )}
+            </div>
+          </div>
+        )}
+        {/* Modal caja */}
+        {cajaModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-3 md:p-6">
+            <div className="absolute inset-0 bg-black/50" onClick={() => setCajaModalOpen(false)} />
+            <div
+              className={`relative w-full max-w-sm rounded-2xl border p-5 shadow-xl transition-colors ${
+                colorMode === "color"
+                  ? "border-zinc-300 bg-white text-black"
+                  : "border-zinc-800 bg-zinc-950 text-zinc-50"
+              }`}
+            >
+              {!cajaSession ? (
+                /* ── Abrir caja ── */
+                <>
+                  <div className="text-base font-semibold">Abrir caja</div>
+                  <div className={`mt-1 text-xs ${colorMode === "color" ? "text-zinc-500" : "text-zinc-400"}`}>
+                    Introduce el cambio inicial que metes en la caja.
+                  </div>
+
+                  <div className="mt-4">
+                    <label className={`block text-xs font-semibold ${colorMode === "color" ? "text-black" : "text-zinc-200"}`}>
+                      Cambio inicial (€)
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.5"
+                      value={cajaFloatInput}
+                      onChange={(e) => setCajaFloatInput(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === "Enter") openCaja(); }}
+                      placeholder="150"
+                      className={`mt-2 w-full rounded-xl border px-4 py-3 text-2xl font-semibold tabular-nums outline-none transition ${
+                        colorMode === "color"
+                          ? "border-zinc-300 bg-white text-black focus:ring-2 focus:ring-zinc-300"
+                          : "border-zinc-800 bg-zinc-900 text-zinc-50 focus:ring-2 focus:ring-zinc-700"
+                      }`}
+                      autoFocus
+                    />
+                  </div>
+
+                  <div className="mt-4 grid grid-cols-2 gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setCajaModalOpen(false)}
+                      className={`rounded-xl border px-4 py-3 text-sm font-semibold transition ${modalBorderBtn(colorMode)}`}
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      type="button"
+                      onClick={openCaja}
+                      className={`rounded-xl px-4 py-3 text-sm font-semibold transition ${
+                        colorMode === "color"
+                          ? "bg-zinc-900 text-white hover:bg-zinc-800"
+                          : "bg-white text-zinc-900 hover:bg-zinc-200"
+                      }`}
+                    >
+                      Abrir caja
+                    </button>
+                  </div>
+                </>
+              ) : (
+                /* ── Resumen de caja ── */
+                <>
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="text-base font-semibold">Resumen de caja</div>
+                      <div className={`mt-1 text-xs ${colorMode === "color" ? "text-zinc-500" : "text-zinc-400"}`}>
+                        Abierta a las {new Date(cajaSession.openedAt).toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" })}
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setCajaModalOpen(false)}
+                      className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition ${modalBorderBtn(colorMode)}`}
+                    >
+                      Cerrar
+                    </button>
+                  </div>
+
+                  <div className={`mt-4 space-y-2 rounded-xl border p-4 ${colorMode === "color" ? "border-zinc-200 bg-zinc-50" : "border-zinc-800 bg-zinc-900/40"}`}>
+                    <div className="flex items-center justify-between">
+                      <span className={`text-sm ${colorMode === "color" ? "text-zinc-600" : "text-zinc-400"}`}>Cambio puesto</span>
+                      <span className="text-sm font-semibold tabular-nums">{eur(cajaSession.float)}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className={`text-sm ${colorMode === "color" ? "text-zinc-600" : "text-zinc-400"}`}>
+                        Ventas ({sessionSales.length} tickets)
+                      </span>
+                      <span className="text-sm font-semibold tabular-nums">{eur(sessionTotal)}</span>
+                    </div>
+                    <div className={`my-1 border-t ${colorMode === "color" ? "border-zinc-200" : "border-zinc-700"}`} />
+                    <div className="flex items-center justify-between">
+                      <span className={`text-sm ${colorMode === "color" ? "text-zinc-600" : "text-zinc-400"}`}>Total en caja</span>
+                      <span className="text-lg font-semibold tabular-nums">{eur(cajaSession.float + sessionTotal)}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-semibold">Ganancias</span>
+                      <span className="text-2xl font-bold tabular-nums text-emerald-500">{eur(sessionTotal)}</span>
+                    </div>
+                  </div>
+
+                  <div className={`mt-3 text-xs ${colorMode === "color" ? "text-zinc-500" : "text-zinc-500"}`}>
+                    Total en caja = cambio inicial + ventas · Ganancias = ventas únicamente
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={closeCaja}
+                    className={`mt-4 w-full rounded-xl border px-4 py-3 text-sm font-semibold transition ${
+                      colorMode === "color"
+                        ? "border-red-300 text-red-600 hover:bg-red-50"
+                        : "border-red-900 text-red-400 hover:bg-red-950/40"
+                    }`}
+                  >
+                    Cerrar caja y finalizar sesión
+                  </button>
                 </>
               )}
             </div>
