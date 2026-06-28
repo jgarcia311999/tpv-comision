@@ -23,16 +23,44 @@ type Debt = {
   total: number;
 };
 
-const PRODUCTS: Product[] = [
-  { id: "cerveza", name: "Cerveza", price: 2 },
-  { id: "tinto", name: "Tinto", price: 2 },
-  { id: "refresco", name: "Refresco", price: 1.5 },
-  { id: "cubata", name: "Cubata", price: 5 },
-  { id: "plus", name: "+ Extra", price: 1 },
-  { id: "chupito", name: "Chupito", price: 1.5 },
-  { id: "chupito_premium", name: "Chupito premium", price: 2 },
-  { id: "agua_15", name: "Botella de agua 1,5L", price: 1.5 },
-];
+type Category = "bebidas" | "comidas" | "mercha";
+
+const CATEGORY_LABELS: Record<Category, string> = {
+  bebidas: "Bebidas",
+  comidas: "Comidas",
+  mercha: "Mercha",
+};
+
+const PRODUCTS_BY_CATEGORY: Record<Category, Product[]> = {
+  bebidas: [
+    { id: "cerveza", name: "Cerveza", price: 2 },
+    { id: "tinto", name: "Tinto", price: 2 },
+    { id: "refresco", name: "Refresco", price: 1.5 },
+    { id: "cubata", name: "Cubata", price: 5 },
+    { id: "plus", name: "+ Extra", price: 1 },
+    { id: "chupito", name: "Chupito", price: 1.5 },
+    { id: "chupito_premium", name: "Chupito premium", price: 2 },
+    { id: "agua_15", name: "Botella de agua 1,5L", price: 1.5 },
+  ],
+  comidas: [
+    { id: "pipas", name: "Pipas", price: 1 },
+    { id: "papas", name: "Papas", price: 1 },
+    { id: "panini", name: "Panini", price: 3 },
+    { id: "pintxo", name: "Pintxo", price: 1.5 },
+    { id: "sandwich", name: "Sandwich", price: 3 },
+    { id: "chuches", name: "Chuches", price: 1 },
+    { id: "chuches_2", name: "Chuches 2", price: 1.5 },
+  ],
+  mercha: [
+    { id: "llavero", name: "Llavero", price: 5 },
+    { id: "camiseta", name: "Camiseta", price: 15 },
+    { id: "abrechapas", name: "Abrechapas", price: 5 },
+    { id: "vino", name: "Vino", price: 5 },
+    { id: "bandera", name: "Bandera", price: 10 },
+  ],
+};
+
+const ALL_PRODUCTS: Product[] = Object.values(PRODUCTS_BY_CATEGORY).flat();
 
 const NUM_KEYS = ["1", "2", "3", "4", "5", "6", "7", "8", "9"];
 
@@ -113,6 +141,7 @@ export default function Home() {
   const [fiarName, setFiarName] = useState("");
   const [historyTab, setHistoryTab] = useState<"sales" | "debts">("sales");
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [category, setCategory] = useState<Category>("bebidas");
 
   // Fix: sync dark class with colorMode so dark: Tailwind variants work
   useEffect(() => {
@@ -125,7 +154,7 @@ export default function Home() {
 
   const lines = useMemo(
     () =>
-      PRODUCTS.map((p) => {
+      ALL_PRODUCTS.map((p) => {
         const qty = cart[p.id] ?? 0;
         return { ...p, qty, lineTotal: qty * p.price };
       }).filter((l) => l.qty > 0),
@@ -168,6 +197,20 @@ export default function Home() {
       case "chupito": return "bg-orange-300 hover:bg-orange-400 text-zinc-900";
       case "chupito_premium": return "bg-fuchsia-300 hover:bg-fuchsia-400 text-white";
       case "agua_15": return "bg-cyan-300 hover:bg-cyan-400 text-zinc-900";
+      // comidas
+      case "pipas": return "bg-yellow-200 hover:bg-yellow-300 text-zinc-900";
+      case "papas": return "bg-yellow-300 hover:bg-yellow-400 text-zinc-900";
+      case "panini": return "bg-orange-200 hover:bg-orange-300 text-zinc-900";
+      case "pintxo": return "bg-emerald-300 hover:bg-emerald-400 text-zinc-900";
+      case "sandwich": return "bg-amber-200 hover:bg-amber-300 text-zinc-900";
+      case "chuches": return "bg-pink-300 hover:bg-pink-400 text-zinc-900";
+      case "chuches_2": return "bg-pink-400 hover:bg-pink-500 text-white";
+      // mercha
+      case "llavero": return "bg-indigo-300 hover:bg-indigo-400 text-zinc-900";
+      case "camiseta": return "bg-blue-300 hover:bg-blue-400 text-zinc-900";
+      case "abrechapas": return "bg-zinc-400 hover:bg-zinc-500 text-white";
+      case "vino": return "bg-purple-300 hover:bg-purple-400 text-zinc-900";
+      case "bandera": return "bg-red-300 hover:bg-red-400 text-zinc-900";
       default: return "bg-zinc-300 hover:bg-zinc-400 text-zinc-900";
     }
   };
@@ -305,14 +348,30 @@ export default function Home() {
                 : "border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950"
             }`}
           >
-            <div className="flex items-end justify-between gap-3">
-              <h2 className="text-base font-semibold">Productos</h2>
-              <div className={`text-xs ${colorMode === "color" ? "text-black" : "text-zinc-600 dark:text-zinc-400"}`}>
-                Precios según lista
-              </div>
+            {/* Tabs de categoría */}
+            <div className="flex gap-2">
+              {(Object.keys(PRODUCTS_BY_CATEGORY) as Category[]).map((cat) => (
+                <button
+                  key={cat}
+                  type="button"
+                  onClick={() => setCategory(cat)}
+                  className={`rounded-xl border px-4 py-2 text-sm font-semibold transition ${
+                    category === cat
+                      ? colorMode === "color"
+                        ? "border-zinc-900 bg-zinc-900 text-white"
+                        : "border-zinc-700 bg-zinc-900 text-white dark:border-zinc-600 dark:bg-zinc-100 dark:text-zinc-900"
+                      : colorMode === "color"
+                      ? "border-zinc-300 bg-white text-black hover:bg-zinc-100"
+                      : "border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-300 dark:hover:bg-zinc-900"
+                  }`}
+                >
+                  {CATEGORY_LABELS[cat]}
+                </button>
+              ))}
             </div>
+
             <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-3 md:gap-4 lg:grid-cols-4">
-              {PRODUCTS.map((p) => (
+              {PRODUCTS_BY_CATEGORY[category].map((p) => (
                 <button
                   key={p.id}
                   onClick={() => add(p.id)}
@@ -474,9 +533,11 @@ export default function Home() {
               </button>
             </div>
 
-            <div className={`mt-3 text-xs ${colorMode === "color" ? "text-black" : "text-zinc-600 dark:text-zinc-400"}`}>
-              Nota: "+ Extra" suma 1€ al total para energéticas u otros suplementos.
-            </div>
+            {category === "bebidas" && (
+              <div className={`mt-3 text-xs ${colorMode === "color" ? "text-black" : "text-zinc-600 dark:text-zinc-400"}`}>
+                Nota: "+ Extra" suma 1€ al total para energéticas u otros suplementos.
+              </div>
+            )}
           </aside>
         </div>
 
