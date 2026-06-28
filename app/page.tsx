@@ -24,6 +24,7 @@ type Debt = {
 };
 type CajaSession = { openedAt: number; float: number };
 type Category = "bebidas" | "comidas" | "mercha";
+type Theme = "claro" | "oscuro";
 
 const CATEGORY_LABELS: Record<Category, string> = {
   bebidas: "Bebidas",
@@ -101,7 +102,8 @@ function loadInitialState() {
   if (typeof window === "undefined") {
     return {
       cart: {} as Record<string, number>,
-      colorMode: "dark" as "dark" | "color",
+      theme: "oscuro" as Theme,
+      colorButtons: false,
       sales: [] as Sale[],
       debts: [] as Debt[],
       cajaSession: null as CajaSession | null,
@@ -109,40 +111,46 @@ function loadInitialState() {
   }
   const saved = safeParse<{
     cart: Record<string, number>;
-    colorMode: "dark" | "color";
+    theme: Theme;
+    colorButtons: boolean;
     sales: Sale[];
     debts: Debt[];
     cajaSession: CajaSession | null;
   }>(localStorage.getItem(STORAGE_KEY));
   return {
     cart: saved?.cart && typeof saved.cart === "object" ? saved.cart : {},
-    colorMode: saved?.colorMode === "dark" || saved?.colorMode === "color" ? saved.colorMode : "dark",
+    theme: saved?.theme === "claro" || saved?.theme === "oscuro" ? saved.theme : "oscuro",
+    colorButtons: typeof saved?.colorButtons === "boolean" ? saved.colorButtons : false,
     sales: Array.isArray(saved?.sales) ? saved!.sales : [],
     debts: Array.isArray(saved?.debts) ? saved!.debts : [],
     cajaSession: saved?.cajaSession?.openedAt && saved?.cajaSession?.float != null ? saved.cajaSession : null,
   };
 }
 
-function borderBtn(cm: "dark" | "color") {
-  return cm === "color"
+// Helpers de clase según tema
+function isLight(t: Theme) { return t === "claro"; }
+
+function borderBtn(t: Theme) {
+  return isLight(t)
     ? "border-zinc-300 text-black hover:bg-zinc-100"
-    : "border-zinc-200 text-zinc-700 hover:bg-zinc-50 dark:border-zinc-800 dark:text-zinc-200 dark:hover:bg-zinc-900";
+    : "border-zinc-700 text-zinc-200 hover:bg-zinc-800 dark:border-zinc-800 dark:text-zinc-200 dark:hover:bg-zinc-900";
 }
-function modalBorderBtn(cm: "dark" | "color") {
-  return cm === "color"
+function modalBorderBtn(t: Theme) {
+  return isLight(t)
     ? "border-zinc-300 text-black hover:bg-zinc-100"
-    : "border-zinc-800 text-zinc-200 hover:bg-zinc-900";
+    : "border-zinc-700 text-zinc-200 hover:bg-zinc-800";
 }
-function numKey(cm: "dark" | "color") {
-  return cm === "color"
+function numKey(t: Theme) {
+  return isLight(t)
     ? "border-zinc-300 text-black hover:bg-zinc-100"
-    : "border-zinc-800 text-zinc-50 hover:bg-zinc-900";
+    : "border-zinc-700 text-zinc-50 hover:bg-zinc-800";
 }
 
 export default function Home() {
   const initial = useMemo(() => loadInitialState(), []);
   const [cart, setCart] = useState<Record<string, number>>(() => initial.cart);
-  const [colorMode, setColorMode] = useState<"dark" | "color">(() => initial.colorMode);
+  const [theme, setTheme] = useState<Theme>(() => initial.theme);
+  const [colorButtons, setColorButtons] = useState<boolean>(() => initial.colorButtons);
   const [payOpen, setPayOpen] = useState(false);
   const [paid, setPaid] = useState<string>("");
   const [sales, setSales] = useState<Sale[]>(() => initial.sales);
@@ -157,12 +165,12 @@ export default function Home() {
   const [cajaFloatInput, setCajaFloatInput] = useState("");
 
   useEffect(() => {
-    document.documentElement.classList.toggle("dark", colorMode === "dark");
-  }, [colorMode]);
+    document.documentElement.classList.toggle("dark", theme === "oscuro");
+  }, [theme]);
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ cart, colorMode, sales, debts, cajaSession }));
-  }, [cart, colorMode, sales, debts, cajaSession]);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ cart, theme, colorButtons, sales, debts, cajaSession }));
+  }, [cart, theme, colorButtons, sales, debts, cajaSession]);
 
   const lines = useMemo(
     () =>
@@ -210,7 +218,8 @@ export default function Home() {
   };
 
   const productColor = (id: string) => {
-    if (colorMode !== "color") return "";
+    // Solo aplica colores si colorButtons está activado
+    if (!colorButtons) return "";
     switch (id) {
       case "cerveza": return "bg-amber-300 hover:bg-amber-400 text-zinc-900";
       case "tinto": return "bg-rose-300 hover:bg-rose-400 text-zinc-900";
@@ -235,6 +244,11 @@ export default function Home() {
       default: return "bg-zinc-300 hover:bg-zinc-400 text-zinc-900";
     }
   };
+
+  // Clase base de botón de producto según tema (cuando colorButtons está off)
+  const productBaseClass = isLight(theme)
+    ? "bg-zinc-50 hover:bg-zinc-100 border-zinc-200 text-zinc-900"
+    : "bg-zinc-900/40 hover:bg-zinc-900 border-zinc-800 text-zinc-50 dark:bg-zinc-900/40 dark:hover:bg-zinc-900";
 
   const paidNumber = useMemo(() => {
     if (!paid) return 0;
@@ -278,13 +292,7 @@ export default function Home() {
   };
 
   const closePay = () => { setPayOpen(false); setPaid(""); };
-
-  const openFiar = () => {
-    if (total <= 0) return;
-    setFiarName("");
-    setFiarOpen(true);
-  };
-
+  const openFiar = () => { if (total <= 0) return; setFiarName(""); setFiarOpen(true); };
   const closeFiar = () => { setFiarOpen(false); setFiarName(""); };
 
   const confirmFiar = () => {
@@ -346,40 +354,31 @@ export default function Home() {
     setCajaModalOpen(false);
   };
 
+  const light = isLight(theme);
+
   return (
-    <div
-      className={`h-screen overflow-hidden transition-colors ${
-        colorMode === "color"
-          ? "bg-zinc-100 text-zinc-900"
-          : "bg-zinc-200 text-zinc-900 dark:bg-zinc-900 dark:text-zinc-50"
-      }`}
-    >
+    <div className={`h-screen overflow-hidden transition-colors ${light ? "bg-zinc-100 text-zinc-900" : "bg-zinc-900 text-zinc-50 dark:bg-zinc-900 dark:text-zinc-50"}`}>
       <main className="h-full p-2 md:p-3">
         <div className="h-full grid gap-3 md:grid-cols-[1fr_460px]">
 
           {/* ── Productos ── */}
-          <section
-            className={`flex flex-col rounded-2xl border overflow-hidden ${
-              colorMode === "color"
-                ? "border-zinc-300 bg-white"
-                : "border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950"
-            }`}
-          >
-            {/* Tabs de categoría */}
-            <div className={`flex gap-2 p-3 border-b ${colorMode === "color" ? "border-zinc-200" : "border-zinc-200 dark:border-zinc-800"}`}>
+          <section className={`flex flex-col rounded-2xl border overflow-hidden ${light ? "border-zinc-300 bg-white" : "border-zinc-800 bg-zinc-950"}`}>
+
+            {/* Tabs — ocupan toda la fila */}
+            <div className={`flex p-3 gap-2 border-b ${light ? "border-zinc-200" : "border-zinc-800"}`}>
               {(Object.keys(PRODUCTS_BY_CATEGORY) as Category[]).map((cat) => (
                 <button
                   key={cat}
                   type="button"
                   onClick={() => setCategory(cat)}
-                  className={`rounded-xl border px-5 py-3 text-base font-semibold transition ${
+                  className={`flex-1 rounded-xl border py-3 text-base font-semibold transition ${
                     category === cat
-                      ? colorMode === "color"
+                      ? light
                         ? "border-zinc-900 bg-zinc-900 text-white"
-                        : "border-zinc-700 bg-zinc-900 text-white dark:border-zinc-600 dark:bg-zinc-100 dark:text-zinc-900"
-                      : colorMode === "color"
+                        : "border-zinc-500 bg-zinc-100 text-zinc-900"
+                      : light
                       ? "border-zinc-300 bg-white text-black hover:bg-zinc-100"
-                      : "border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-300 dark:hover:bg-zinc-900"
+                      : "border-zinc-700 bg-zinc-900 text-zinc-300 hover:bg-zinc-800"
                   }`}
                 >
                   {CATEGORY_LABELS[cat]}
@@ -393,81 +392,71 @@ export default function Home() {
                 className="h-full grid grid-cols-3 gap-3"
                 style={{ gridTemplateRows: `repeat(${Math.ceil(PRODUCTS_BY_CATEGORY[category].length / 3)}, minmax(0, 1fr))` }}
               >
-                {PRODUCTS_BY_CATEGORY[category].map((p) => (
-                  <button
-                    key={p.id}
-                    onClick={() => add(p.id)}
-                    className={`flex flex-col justify-between rounded-2xl border p-6 text-left transition active:scale-[0.97] ${
-                      colorMode === "color"
-                        ? productColor(p.id)
-                        : "bg-zinc-50 hover:bg-zinc-100 border-zinc-200 dark:border-zinc-800 dark:bg-zinc-900/40 dark:hover:bg-zinc-900"
-                    }`}
-                  >
-                    <div className="text-2xl font-semibold leading-snug">{p.name}</div>
-                    <div className={`mt-4 text-3xl font-bold ${colorMode === "color" ? "opacity-70" : "text-zinc-600 dark:text-zinc-400"}`}>
-                      {eur(p.price)}
-                    </div>
-                  </button>
-                ))}
+                {PRODUCTS_BY_CATEGORY[category].map((p) => {
+                  const colored = productColor(p.id);
+                  return (
+                    <button
+                      key={p.id}
+                      onClick={() => add(p.id)}
+                      className={`flex flex-col justify-between rounded-2xl border p-6 text-left transition active:scale-[0.97] ${colored || productBaseClass}`}
+                    >
+                      <div className="text-2xl font-semibold leading-snug">{p.name}</div>
+                      <div className={`mt-4 text-3xl font-bold ${colored ? "opacity-70" : light ? "text-zinc-500" : "text-zinc-400"}`}>
+                        {eur(p.price)}
+                      </div>
+                    </button>
+                  );
+                })}
               </div>
             </div>
           </section>
 
           {/* ── Cuenta ── */}
-          <aside
-            className={`flex flex-col rounded-2xl border overflow-hidden ${
-              colorMode === "color"
-                ? "border-zinc-300 bg-white"
-                : "border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950"
-            }`}
-          >
-            {/* Cabecera cuenta con todos los botones */}
-            <div className={`flex flex-wrap items-center justify-between gap-2 p-3 border-b ${colorMode === "color" ? "border-zinc-200" : "border-zinc-200 dark:border-zinc-800"}`}>
+          <aside className={`flex flex-col rounded-2xl border overflow-hidden ${light ? "border-zinc-300 bg-white" : "border-zinc-800 bg-zinc-950"}`}>
+
+            {/* Cabecera con todos los botones */}
+            <div className={`flex flex-wrap items-center justify-between gap-2 p-3 border-b ${light ? "border-zinc-200" : "border-zinc-800"}`}>
               <h2 className="text-base font-semibold">Cuenta</h2>
               <div className="flex flex-wrap items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => { setHistoryTab("sales"); setHistoryOpen(true); }}
-                  className={`rounded-lg border px-3 py-2 text-sm font-medium transition ${borderBtn(colorMode)}`}
-                >
+                <button type="button" onClick={() => { setHistoryTab("sales"); setHistoryOpen(true); }} className={`rounded-lg border px-3 py-2 text-sm font-medium transition ${borderBtn(theme)}`}>
                   Historial
                 </button>
 
-                {/* Modo pantalla */}
+                {/* Tema: claro / oscuro */}
                 <button
                   type="button"
-                  onClick={() => setColorMode(colorMode === "dark" ? "color" : "dark")}
-                  className={`rounded-lg border px-3 py-2 text-sm font-medium transition ${borderBtn(colorMode)}`}
+                  onClick={() => setTheme(light ? "oscuro" : "claro")}
+                  className={`rounded-lg border px-3 py-2 text-sm font-medium transition ${borderBtn(theme)}`}
                 >
-                  {colorMode === "dark" ? "Colores" : "Oscuro"}
+                  {light ? "Oscuro" : "Claro"}
+                </button>
+
+                {/* Colores de producto (independiente del tema) */}
+                <button
+                  type="button"
+                  onClick={() => setColorButtons(!colorButtons)}
+                  className={`rounded-lg border px-3 py-2 text-sm font-medium transition ${
+                    colorButtons
+                      ? "border-violet-400 bg-violet-50 text-violet-700 dark:border-violet-700 dark:bg-violet-950/40 dark:text-violet-400"
+                      : borderBtn(theme)
+                  }`}
+                >
+                  Colores
                 </button>
 
                 {/* Caja */}
                 {cajaSession ? (
-                  <button
-                    type="button"
-                    onClick={() => setCajaModalOpen(true)}
-                    className="flex items-center gap-1.5 rounded-lg border border-emerald-400 bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-700 transition hover:bg-emerald-100 dark:border-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400"
-                  >
+                  <button type="button" onClick={() => setCajaModalOpen(true)} className="flex items-center gap-1.5 rounded-lg border border-emerald-400 bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-700 transition hover:bg-emerald-100 dark:border-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400">
                     <span className="h-2 w-2 rounded-full bg-emerald-500" />
                     Caja
                   </button>
                 ) : (
-                  <button
-                    type="button"
-                    onClick={() => { setCajaFloatInput(""); setCajaModalOpen(true); }}
-                    className={`rounded-lg border px-3 py-2 text-sm font-medium transition ${borderBtn(colorMode)}`}
-                  >
+                  <button type="button" onClick={() => { setCajaFloatInput(""); setCajaModalOpen(true); }} className={`rounded-lg border px-3 py-2 text-sm font-medium transition ${borderBtn(theme)}`}>
                     Abrir caja
                   </button>
                 )}
 
-                <button
-                  type="button"
-                  onClick={openFiar}
-                  disabled={total <= 0}
-                  className={`rounded-lg border px-3 py-2 text-sm font-medium transition disabled:opacity-40 ${borderBtn(colorMode)}`}
-                >
+                <button type="button" onClick={openFiar} disabled={total <= 0} className={`rounded-lg border px-3 py-2 text-sm font-medium transition disabled:opacity-40 ${borderBtn(theme)}`}>
                   Fiar
                 </button>
               </div>
@@ -475,111 +464,48 @@ export default function Home() {
 
             {/* Fiados pendientes */}
             {debts.length > 0 && (
-              <button
-                type="button"
-                onClick={() => { setHistoryTab("debts"); setHistoryOpen(true); }}
-                className={`mx-3 mt-2 rounded-lg border px-3 py-2 text-left text-sm font-medium transition ${
-                  colorMode === "color"
-                    ? "border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100"
-                    : "border-amber-800 bg-amber-950/40 text-amber-400 hover:bg-amber-950/60"
-                }`}
-              >
+              <button type="button" onClick={() => { setHistoryTab("debts"); setHistoryOpen(true); }} className={`mx-3 mt-2 rounded-lg border px-3 py-2 text-left text-sm font-medium transition ${light ? "border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100" : "border-amber-800 bg-amber-950/40 text-amber-400 hover:bg-amber-950/60"}`}>
                 {debts.length} fiado{debts.length !== 1 ? "s" : ""} pendiente{debts.length !== 1 ? "s" : ""} · {eur(pendingDebtTotal)}
               </button>
             )}
 
-            {/* Líneas de la cuenta — scrollable */}
+            {/* Líneas de la cuenta */}
             <div className="flex-1 overflow-auto p-3 space-y-2">
               {lines.length === 0 ? (
-                <div className={`rounded-xl border border-dashed p-5 text-base ${
-                  colorMode === "color"
-                    ? "border-zinc-300 text-zinc-400"
-                    : "border-zinc-200 text-zinc-500 dark:border-zinc-800 dark:text-zinc-500"
-                }`}>
+                <div className={`rounded-xl border border-dashed p-5 text-base ${light ? "border-zinc-300 text-zinc-400" : "border-zinc-700 text-zinc-500"}`}>
                   Sin productos.
                 </div>
               ) : (
                 lines.map((l) => (
-                  <div
-                    key={l.id}
-                    className={`flex items-center justify-between gap-3 rounded-xl border p-3 transition-colors ${
-                      colorMode === "color"
-                        ? "border-zinc-200 bg-zinc-50"
-                        : "border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900/40"
-                    }`}
-                  >
+                  <div key={l.id} className={`flex items-center justify-between gap-3 rounded-xl border p-3 transition-colors ${light ? "border-zinc-200 bg-zinc-50" : "border-zinc-800 bg-zinc-900/40"}`}>
                     <div className="min-w-0">
                       <div className="truncate text-base font-semibold">{l.name}</div>
-                      <div className={`mt-0.5 text-sm ${colorMode === "color" ? "text-zinc-500" : "text-zinc-500 dark:text-zinc-400"}`}>
-                        {l.qty} × {eur(l.price)} = {eur(l.lineTotal)}
-                      </div>
+                      <div className={`mt-0.5 text-sm ${light ? "text-zinc-500" : "text-zinc-400"}`}>{l.qty} × {eur(l.price)} = {eur(l.lineTotal)}</div>
                     </div>
                     <div className="flex shrink-0 items-center gap-2">
-                      <button
-                        onClick={() => dec(l.id)}
-                        className={`h-11 w-11 rounded-xl border text-lg font-semibold transition ${
-                          colorMode === "color"
-                            ? "border-zinc-300 bg-white hover:bg-zinc-100"
-                            : "border-zinc-300 bg-white hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-950 dark:hover:bg-zinc-900"
-                        }`}
-                        aria-label={`Restar ${l.name}`}
-                      >
-                        −
-                      </button>
+                      <button onClick={() => dec(l.id)} className={`h-11 w-11 rounded-xl border text-lg font-semibold transition ${light ? "border-zinc-300 bg-white hover:bg-zinc-100" : "border-zinc-700 bg-zinc-950 hover:bg-zinc-800"}`} aria-label={`Restar ${l.name}`}>−</button>
                       <div className="w-8 text-center text-base font-semibold tabular-nums">{l.qty}</div>
-                      <button
-                        onClick={() => add(l.id)}
-                        className={`h-11 w-11 rounded-xl border text-lg font-semibold transition ${
-                          colorMode === "color"
-                            ? "border-zinc-300 bg-white hover:bg-zinc-100"
-                            : "border-zinc-300 bg-white hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-950 dark:hover:bg-zinc-900"
-                        }`}
-                        aria-label={`Sumar ${l.name}`}
-                        type="button"
-                      >
-                        +
-                      </button>
-                      <button
-                        onClick={() => remove(l.id)}
-                        className={`rounded-xl border px-3 py-2 text-sm font-medium transition ${
-                          colorMode === "color"
-                            ? "border-zinc-300 text-zinc-600 hover:bg-zinc-100"
-                            : "border-zinc-300 text-zinc-500 hover:bg-zinc-50 dark:border-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-900"
-                        }`}
-                      >
-                        Quitar
-                      </button>
+                      <button onClick={() => add(l.id)} type="button" className={`h-11 w-11 rounded-xl border text-lg font-semibold transition ${light ? "border-zinc-300 bg-white hover:bg-zinc-100" : "border-zinc-700 bg-zinc-950 hover:bg-zinc-800"}`} aria-label={`Sumar ${l.name}`}>+</button>
+                      <button onClick={() => remove(l.id)} className={`rounded-xl border px-3 py-2 text-sm font-medium transition ${light ? "border-zinc-300 text-zinc-600 hover:bg-zinc-100" : "border-zinc-700 text-zinc-400 hover:bg-zinc-800"}`}>Quitar</button>
                     </div>
                   </div>
                 ))
               )}
             </div>
 
-            {/* Total y botones de acción — fijos al fondo */}
-            <div className={`p-3 border-t ${colorMode === "color" ? "border-zinc-200" : "border-zinc-200 dark:border-zinc-800"}`}>
-              <div className={`rounded-xl border p-4 ${
-                colorMode === "color"
-                  ? "border-zinc-200 bg-zinc-50"
-                  : "border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900/40"
-              }`}>
+            {/* Total y botones de acción */}
+            <div className={`p-3 border-t ${light ? "border-zinc-200" : "border-zinc-800"}`}>
+              <div className={`rounded-xl border p-4 ${light ? "border-zinc-200 bg-zinc-50" : "border-zinc-800 bg-zinc-900/40"}`}>
                 <div className="flex items-center justify-between">
                   <div className="text-base font-semibold">Total</div>
                   <div className="text-4xl font-bold tabular-nums">{eur(total)}</div>
                 </div>
               </div>
-
               <div className="mt-3 grid grid-cols-2 gap-3">
                 <button
-                  onClick={() => {
-                    if (lines.length === 0) return;
-                    if (window.confirm("¿Borrar toda la cuenta?")) clear();
-                  }}
+                  onClick={() => { if (lines.length === 0) return; if (window.confirm("¿Borrar toda la cuenta?")) clear(); }}
                   disabled={total <= 0}
-                  className={`rounded-xl border px-4 py-4 text-base font-semibold transition disabled:opacity-40 ${
-                    colorMode === "color"
-                      ? "border-zinc-300 text-black enabled:hover:bg-zinc-100"
-                      : "border-zinc-200 text-zinc-800 enabled:hover:bg-zinc-50 dark:border-zinc-800 dark:text-zinc-100 dark:enabled:hover:bg-zinc-900"
-                  }`}
+                  className={`rounded-xl border px-4 py-4 text-base font-semibold transition disabled:opacity-40 ${light ? "border-zinc-300 text-black enabled:hover:bg-zinc-100" : "border-zinc-700 text-zinc-100 enabled:hover:bg-zinc-800"}`}
                 >
                   Borrar todo
                 </button>
@@ -587,18 +513,13 @@ export default function Home() {
                   onClick={cobrar}
                   disabled={total <= 0}
                   type="button"
-                  className={`rounded-xl px-4 py-6 text-xl font-bold transition ${
-                    colorMode === "color"
-                      ? "bg-zinc-900 text-white enabled:hover:bg-zinc-800 disabled:bg-zinc-200 disabled:text-zinc-400"
-                      : "bg-zinc-900 text-white enabled:hover:bg-zinc-800 disabled:bg-zinc-700 disabled:text-zinc-500 dark:bg-white dark:text-zinc-900 dark:enabled:hover:bg-zinc-200 dark:disabled:bg-zinc-800 dark:disabled:text-zinc-500"
-                  }`}
+                  className={`rounded-xl px-4 py-6 text-xl font-bold transition ${light ? "bg-zinc-900 text-white enabled:hover:bg-zinc-800 disabled:bg-zinc-200 disabled:text-zinc-400" : "bg-white text-zinc-900 enabled:hover:bg-zinc-200 disabled:bg-zinc-700 disabled:text-zinc-500"}`}
                 >
                   Cobrar
                 </button>
               </div>
-
               {category === "bebidas" && (
-                <div className={`mt-2 text-xs ${colorMode === "color" ? "text-zinc-400" : "text-zinc-500"}`}>
+                <div className={`mt-2 text-xs ${light ? "text-zinc-400" : "text-zinc-500"}`}>
                   "+ Extra" suma 1€ para energéticas u otros suplementos.
                 </div>
               )}
@@ -611,26 +532,15 @@ export default function Home() {
       {payOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-3 md:p-6">
           <div className="absolute inset-0 bg-black/50" onClick={closePay} />
-          <div
-            className={`relative w-full max-w-md md:max-w-lg max-h-[90vh] overflow-auto rounded-2xl border p-4 shadow-xl transition-colors ${
-              colorMode === "color"
-                ? "border-zinc-300 bg-white text-black"
-                : "border-zinc-800 bg-zinc-950 text-zinc-50"
-            }`}
-          >
+          <div className={`relative w-full max-w-md md:max-w-lg max-h-[90vh] overflow-auto rounded-2xl border p-4 shadow-xl ${light ? "border-zinc-300 bg-white text-black" : "border-zinc-700 bg-zinc-950 text-zinc-50"}`}>
             <div className="flex items-start justify-between gap-3">
               <div>
                 <div className="text-base font-semibold">Cobro</div>
-                <div className={`mt-1 text-sm ${colorMode === "color" ? "text-zinc-500" : "text-zinc-400"}`}>
-                  Introduce lo que te da el cliente.
-                </div>
+                <div className={`mt-1 text-sm ${light ? "text-zinc-500" : "text-zinc-400"}`}>Introduce lo que te da el cliente.</div>
               </div>
-              <button type="button" onClick={closePay} className={`rounded-lg border px-3 py-2 text-sm font-medium transition ${modalBorderBtn(colorMode)}`}>
-                Cerrar
-              </button>
+              <button type="button" onClick={closePay} className={`rounded-lg border px-3 py-2 text-sm font-medium transition ${modalBorderBtn(theme)}`}>Cerrar</button>
             </div>
-
-            <div className={`mt-4 rounded-xl border p-4 ${colorMode === "color" ? "border-zinc-300 bg-zinc-50" : "border-zinc-800 bg-black/20"}`}>
+            <div className={`mt-4 rounded-xl border p-4 ${light ? "border-zinc-300 bg-zinc-50" : "border-zinc-700 bg-black/20"}`}>
               <div className="flex items-center justify-between">
                 <div className="text-sm font-semibold">Total</div>
                 <div className="text-2xl font-bold tabular-nums">{eur(total)}</div>
@@ -641,57 +551,28 @@ export default function Home() {
               </div>
               <div className="mt-2 flex items-center justify-between">
                 <div className="text-sm font-semibold">Cambio</div>
-                <div className={`text-3xl font-bold tabular-nums ${paid && paidNumber < total ? "text-red-500" : ""}`}>
-                  {paid ? eur(Math.max(change, 0)) : "—"}
-                </div>
+                <div className={`text-3xl font-bold tabular-nums ${paid && paidNumber < total ? "text-red-500" : ""}`}>{paid ? eur(Math.max(change, 0)) : "—"}</div>
               </div>
-              {paid && paidNumber < total && (
-                <div className="mt-1 text-sm text-red-500">Falta {eur(total - paidNumber)}</div>
-              )}
+              {paid && paidNumber < total && <div className="mt-1 text-sm text-red-500">Falta {eur(total - paidNumber)}</div>}
             </div>
-
             <div className="mt-4 grid grid-cols-4 gap-2">
               {["5", "10", "20", "50"].map((v) => (
-                <button key={v} type="button" onClick={() => setPaid(v)} className={`rounded-xl border px-3 py-4 text-base font-semibold transition ${numKey(colorMode)}`}>
-                  {v}€
-                </button>
+                <button key={v} type="button" onClick={() => setPaid(v)} className={`rounded-xl border px-3 py-4 text-base font-semibold transition ${numKey(theme)}`}>{v}€</button>
               ))}
             </div>
-
             <div className="mt-3 grid grid-cols-3 gap-2">
               {NUM_KEYS.map((k) => (
-                <button key={k} type="button" onClick={() => appendPaid(k)} className={`rounded-xl border px-3 py-5 text-xl font-semibold transition ${numKey(colorMode)}`}>
-                  {k}
-                </button>
+                <button key={k} type="button" onClick={() => appendPaid(k)} className={`rounded-xl border px-3 py-5 text-xl font-semibold transition ${numKey(theme)}`}>{k}</button>
               ))}
             </div>
             <div className="mt-2 grid grid-cols-4 gap-2">
               {([[".", "."], ["0", "0"], ["00", "00"], ["⌫", "backspace"]] as [string, string][]).map(([label, val]) => (
-                <button
-                  key={val}
-                  type="button"
-                  onClick={() => val === "backspace" ? backspacePaid() : appendPaid(val)}
-                  className={`rounded-xl border px-3 py-5 text-xl font-semibold transition ${numKey(colorMode)}`}
-                >
-                  {label}
-                </button>
+                <button key={val} type="button" onClick={() => val === "backspace" ? backspacePaid() : appendPaid(val)} className={`rounded-xl border px-3 py-5 text-xl font-semibold transition ${numKey(theme)}`}>{label}</button>
               ))}
             </div>
-
             <div className="mt-3 grid grid-cols-2 gap-3">
-              <button type="button" onClick={clearPaid} className={`rounded-xl border px-4 py-4 text-base font-semibold transition ${modalBorderBtn(colorMode)}`}>
-                Borrar
-              </button>
-              <button
-                type="button"
-                onClick={finishPay}
-                disabled={!paid || paidNumber < total}
-                className={`rounded-xl px-4 py-4 text-base font-semibold transition ${
-                  colorMode === "color"
-                    ? "bg-zinc-900 text-white enabled:hover:bg-zinc-800 disabled:bg-zinc-200 disabled:text-zinc-400"
-                    : "bg-white text-zinc-900 enabled:hover:bg-zinc-200 disabled:bg-zinc-800 disabled:text-zinc-400"
-                }`}
-              >
+              <button type="button" onClick={clearPaid} className={`rounded-xl border px-4 py-4 text-base font-semibold transition ${modalBorderBtn(theme)}`}>Borrar</button>
+              <button type="button" onClick={finishPay} disabled={!paid || paidNumber < total} className={`rounded-xl px-4 py-4 text-base font-semibold transition ${light ? "bg-zinc-900 text-white enabled:hover:bg-zinc-800 disabled:bg-zinc-200 disabled:text-zinc-400" : "bg-white text-zinc-900 enabled:hover:bg-zinc-200 disabled:bg-zinc-700 disabled:text-zinc-400"}`}>
                 Confirmar cobro
               </button>
             </div>
@@ -703,50 +584,33 @@ export default function Home() {
       {fiarOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-3 md:p-6">
           <div className="absolute inset-0 bg-black/50" onClick={closeFiar} />
-          <div
-            className={`relative w-full max-w-md max-h-[90vh] overflow-auto rounded-2xl border p-4 shadow-xl transition-colors ${
-              colorMode === "color"
-                ? "border-zinc-300 bg-white text-black"
-                : "border-zinc-800 bg-zinc-950 text-zinc-50"
-            }`}
-          >
+          <div className={`relative w-full max-w-md max-h-[90vh] overflow-auto rounded-2xl border p-4 shadow-xl ${light ? "border-zinc-300 bg-white text-black" : "border-zinc-700 bg-zinc-950 text-zinc-50"}`}>
             <div className="flex items-start justify-between gap-3">
               <div>
                 <div className="text-base font-semibold">Fiar</div>
-                <div className={`mt-1 text-sm ${colorMode === "color" ? "text-zinc-500" : "text-zinc-400"}`}>
-                  Guarda una deuda con nombre y detalle.
-                </div>
+                <div className={`mt-1 text-sm ${light ? "text-zinc-500" : "text-zinc-400"}`}>Guarda una deuda con nombre y detalle.</div>
               </div>
-              <button type="button" onClick={closeFiar} className={`rounded-lg border px-3 py-2 text-sm font-medium transition ${modalBorderBtn(colorMode)}`}>
-                Cerrar
-              </button>
+              <button type="button" onClick={closeFiar} className={`rounded-lg border px-3 py-2 text-sm font-medium transition ${modalBorderBtn(theme)}`}>Cerrar</button>
             </div>
-
-            <div className={`mt-4 rounded-xl border p-4 ${colorMode === "color" ? "border-zinc-300 bg-zinc-50" : "border-zinc-800 bg-black/20"}`}>
+            <div className={`mt-4 rounded-xl border p-4 ${light ? "border-zinc-300 bg-zinc-50" : "border-zinc-700 bg-black/20"}`}>
               <div className="flex items-center justify-between">
                 <div className="text-sm font-semibold">Total</div>
                 <div className="text-2xl font-bold tabular-nums">{eur(total)}</div>
               </div>
             </div>
-
             <div className="mt-4">
-              <label className={`block text-sm font-semibold ${colorMode === "color" ? "text-black" : "text-zinc-200"}`}>Nombre</label>
+              <label className={`block text-sm font-semibold ${light ? "text-black" : "text-zinc-200"}`}>Nombre</label>
               <input
                 value={fiarName}
                 onChange={(e) => setFiarName(e.target.value)}
                 onKeyDown={(e) => { if (e.key === "Enter" && fiarName.trim()) confirmFiar(); }}
                 placeholder="Ej: Juan / Paco / Mesa 3"
-                className={`mt-2 w-full rounded-xl border px-4 py-3 text-base outline-none transition ${
-                  colorMode === "color"
-                    ? "border-zinc-300 bg-white text-black focus:ring-2 focus:ring-zinc-300"
-                    : "border-zinc-800 bg-zinc-950 text-zinc-50 focus:ring-2 focus:ring-zinc-700"
-                }`}
+                className={`mt-2 w-full rounded-xl border px-4 py-3 text-base outline-none transition ${light ? "border-zinc-300 bg-white text-black focus:ring-2 focus:ring-zinc-300" : "border-zinc-700 bg-zinc-950 text-zinc-50 focus:ring-2 focus:ring-zinc-600"}`}
               />
             </div>
-
-            <div className={`mt-4 rounded-xl border p-3 ${colorMode === "color" ? "border-zinc-300 bg-white" : "border-zinc-800 bg-zinc-900/40"}`}>
+            <div className={`mt-4 rounded-xl border p-3 ${light ? "border-zinc-300 bg-white" : "border-zinc-700 bg-zinc-900/40"}`}>
               <div className="text-sm font-semibold">Detalle</div>
-              <div className={`mt-2 space-y-1 text-sm ${colorMode === "color" ? "text-zinc-600" : "text-zinc-300"}`}>
+              <div className={`mt-2 space-y-1 text-sm ${light ? "text-zinc-600" : "text-zinc-300"}`}>
                 {lines.map((l) => (
                   <div key={l.id} className="flex items-center justify-between gap-3">
                     <div className="truncate">{l.qty} × {l.name}</div>
@@ -755,21 +619,9 @@ export default function Home() {
                 ))}
               </div>
             </div>
-
             <div className="mt-4 grid grid-cols-2 gap-3">
-              <button type="button" onClick={() => setFiarName("")} className={`rounded-xl border px-4 py-4 text-base font-semibold transition ${modalBorderBtn(colorMode)}`}>
-                Borrar nombre
-              </button>
-              <button
-                type="button"
-                onClick={confirmFiar}
-                disabled={fiarName.trim().length === 0}
-                className={`rounded-xl px-4 py-4 text-base font-semibold transition ${
-                  colorMode === "color"
-                    ? "bg-zinc-900 text-white hover:bg-zinc-800 disabled:bg-zinc-200 disabled:text-zinc-400"
-                    : "bg-white text-zinc-900 hover:bg-zinc-200 disabled:bg-zinc-800 disabled:text-zinc-400"
-                }`}
-              >
+              <button type="button" onClick={() => setFiarName("")} className={`rounded-xl border px-4 py-4 text-base font-semibold transition ${modalBorderBtn(theme)}`}>Borrar nombre</button>
+              <button type="button" onClick={confirmFiar} disabled={fiarName.trim().length === 0} className={`rounded-xl px-4 py-4 text-base font-semibold transition ${light ? "bg-zinc-900 text-white hover:bg-zinc-800 disabled:bg-zinc-200 disabled:text-zinc-400" : "bg-white text-zinc-900 hover:bg-zinc-200 disabled:bg-zinc-700 disabled:text-zinc-400"}`}>
                 Guardar fiado
               </button>
             </div>
@@ -781,86 +633,55 @@ export default function Home() {
       {historyOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-3 md:p-6">
           <div className="absolute inset-0 bg-black/50" onClick={() => setHistoryOpen(false)} />
-          <div
-            className={`relative w-full max-w-md md:max-w-lg max-h-[90vh] overflow-auto rounded-2xl border p-4 shadow-xl transition-colors ${
-              colorMode === "color"
-                ? "border-zinc-300 bg-white text-black"
-                : "border-zinc-800 bg-zinc-950 text-zinc-50"
-            }`}
-          >
+          <div className={`relative w-full max-w-md md:max-w-lg max-h-[90vh] overflow-auto rounded-2xl border p-4 shadow-xl ${light ? "border-zinc-300 bg-white text-black" : "border-zinc-700 bg-zinc-950 text-zinc-50"}`}>
             <div className="flex items-start justify-between gap-3">
               <div>
                 <div className="text-base font-semibold">Historial</div>
-                <div className={`mt-1 text-sm ${colorMode === "color" ? "text-zinc-500" : "text-zinc-400"}`}>
-                  Cobros registrados en este dispositivo.
-                </div>
+                <div className={`mt-1 text-sm ${light ? "text-zinc-500" : "text-zinc-400"}`}>Cobros registrados en este dispositivo.</div>
               </div>
               <div className="flex items-center gap-2">
                 {historyTab === "sales" && sales.length > 0 && (
-                  <button
-                    type="button"
-                    onClick={() => { if (window.confirm("¿Vaciar el historial de cobros?")) setSales([]); }}
-                    className={`rounded-lg border px-3 py-2 text-sm font-medium transition ${modalBorderBtn(colorMode)}`}
-                  >
-                    Vaciar
-                  </button>
+                  <button type="button" onClick={() => { if (window.confirm("¿Vaciar el historial de cobros?")) setSales([]); }} className={`rounded-lg border px-3 py-2 text-sm font-medium transition ${modalBorderBtn(theme)}`}>Vaciar</button>
                 )}
-                <button type="button" onClick={() => setHistoryOpen(false)} className={`rounded-lg border px-3 py-2 text-sm font-medium transition ${modalBorderBtn(colorMode)}`}>
-                  Cerrar
-                </button>
+                <button type="button" onClick={() => setHistoryOpen(false)} className={`rounded-lg border px-3 py-2 text-sm font-medium transition ${modalBorderBtn(theme)}`}>Cerrar</button>
               </div>
             </div>
-
             <div className="mt-3 grid grid-cols-2 gap-2">
               {(["sales", "debts"] as const).map((tab) => (
-                <button
-                  key={tab}
-                  type="button"
-                  onClick={() => setHistoryTab(tab)}
-                  className={`rounded-xl border px-3 py-3 text-sm font-semibold transition ${
-                    historyTab === tab
-                      ? colorMode === "color" ? "border-zinc-300 bg-zinc-100 text-black" : "border-zinc-800 bg-black/20 text-zinc-50"
-                      : colorMode === "color" ? "border-zinc-300 bg-white text-black hover:bg-zinc-100" : "border-zinc-800 bg-zinc-950 text-zinc-200 hover:bg-zinc-900"
-                  }`}
-                >
+                <button key={tab} type="button" onClick={() => setHistoryTab(tab)} className={`rounded-xl border px-3 py-3 text-sm font-semibold transition ${historyTab === tab ? (light ? "border-zinc-300 bg-zinc-100 text-black" : "border-zinc-700 bg-black/20 text-zinc-50") : (light ? "border-zinc-300 bg-white text-black hover:bg-zinc-100" : "border-zinc-700 bg-zinc-950 text-zinc-200 hover:bg-zinc-800")}`}>
                   {tab === "sales" ? "Cobros" : `Fiados${debts.length > 0 ? ` (${debts.length})` : ""}`}
                 </button>
               ))}
             </div>
-
             {historyTab === "sales" ? (
               <>
-                <div className={`mt-4 rounded-xl border p-4 ${colorMode === "color" ? "border-zinc-300 bg-zinc-50" : "border-zinc-800 bg-black/20"}`}>
+                <div className={`mt-4 rounded-xl border p-4 ${light ? "border-zinc-300 bg-zinc-50" : "border-zinc-700 bg-black/20"}`}>
                   <div className="flex items-center justify-between">
                     <div className="text-sm font-semibold">Recaudado</div>
                     <div className="text-xl font-bold tabular-nums">{eur(sales.reduce((a, s) => a + s.total, 0))}</div>
                   </div>
                   <div className="mt-1 flex items-center justify-between">
-                    <div className="text-xs text-zinc-500">Tickets</div>
-                    <div className="text-xs tabular-nums text-zinc-500">{sales.length}</div>
+                    <div className={`text-xs ${light ? "text-zinc-500" : "text-zinc-400"}`}>Tickets</div>
+                    <div className={`text-xs tabular-nums ${light ? "text-zinc-500" : "text-zinc-400"}`}>{sales.length}</div>
                   </div>
                 </div>
                 <div className="mt-3 space-y-2">
                   {sales.length === 0 ? (
-                    <div className={`rounded-xl border border-dashed p-4 text-sm ${colorMode === "color" ? "border-zinc-300 text-zinc-400" : "border-zinc-800 text-zinc-500"}`}>
-                      Sin cobros todavía.
-                    </div>
+                    <div className={`rounded-xl border border-dashed p-4 text-sm ${light ? "border-zinc-300 text-zinc-400" : "border-zinc-700 text-zinc-500"}`}>Sin cobros todavía.</div>
                   ) : (
                     sales.map((s) => (
-                      <div key={s.id} className={`flex items-center justify-between gap-3 rounded-xl border p-3 ${colorMode === "color" ? "border-zinc-300 bg-white" : "border-zinc-800 bg-zinc-900/40"}`}>
+                      <div key={s.id} className={`flex items-center justify-between gap-3 rounded-xl border p-3 ${light ? "border-zinc-300 bg-white" : "border-zinc-700 bg-zinc-900/40"}`}>
                         <div className="min-w-0">
                           <div className="truncate text-sm font-semibold">
                             {s.source === "debt" && s.customerName ? (
                               <><span className="mr-2">{formatTimestamp(s.timestamp)}</span>
-                                <span className={`rounded-md border px-2 py-0.5 text-xs font-semibold ${colorMode === "color" ? "border-zinc-300 bg-zinc-100" : "border-zinc-800 bg-black/20 text-zinc-200"}`}>
-                                  Fiado: {s.customerName}
-                                </span></>
+                                <span className={`rounded-md border px-2 py-0.5 text-xs font-semibold ${light ? "border-zinc-300 bg-zinc-100" : "border-zinc-700 bg-black/20 text-zinc-200"}`}>Fiado: {s.customerName}</span></>
                             ) : formatTimestamp(s.timestamp)}
                           </div>
-                          <div className={`mt-0.5 text-xs ${colorMode === "color" ? "text-zinc-500" : "text-zinc-400"}`}>
+                          <div className={`mt-0.5 text-xs ${light ? "text-zinc-500" : "text-zinc-400"}`}>
                             {s.source === "debt" ? <>Total {eur(s.total)} · Pagado (fiado)</> : <>Total {eur(s.total)} · Paga {eur(s.paid)} · Cambio {eur(s.change)}</>}
                           </div>
-                          <div className={`mt-1 text-xs ${colorMode === "color" ? "text-zinc-500" : "text-zinc-400"}`}>{saleItemsSummary(s.items)}</div>
+                          <div className={`mt-1 text-xs ${light ? "text-zinc-500" : "text-zinc-400"}`}>{saleItemsSummary(s.items)}</div>
                         </div>
                         <div className="text-sm font-semibold tabular-nums">{eur(s.total)}</div>
                       </div>
@@ -870,32 +691,30 @@ export default function Home() {
               </>
             ) : (
               <>
-                <div className={`mt-4 rounded-xl border p-4 ${colorMode === "color" ? "border-zinc-300 bg-zinc-50" : "border-zinc-800 bg-black/20"}`}>
+                <div className={`mt-4 rounded-xl border p-4 ${light ? "border-zinc-300 bg-zinc-50" : "border-zinc-700 bg-black/20"}`}>
                   <div className="flex items-center justify-between">
                     <div className="text-sm font-semibold">Pendiente</div>
                     <div className="text-xl font-bold tabular-nums">{eur(pendingDebtTotal)}</div>
                   </div>
                   <div className="mt-1 flex items-center justify-between">
-                    <div className="text-xs text-zinc-500">Fiados</div>
-                    <div className="text-xs tabular-nums text-zinc-500">{debts.length}</div>
+                    <div className={`text-xs ${light ? "text-zinc-500" : "text-zinc-400"}`}>Fiados</div>
+                    <div className={`text-xs tabular-nums ${light ? "text-zinc-500" : "text-zinc-400"}`}>{debts.length}</div>
                   </div>
                 </div>
                 <div className="mt-3 space-y-2">
                   {debts.length === 0 ? (
-                    <div className={`rounded-xl border border-dashed p-4 text-sm ${colorMode === "color" ? "border-zinc-300 text-zinc-400" : "border-zinc-800 text-zinc-500"}`}>
-                      Sin fiados.
-                    </div>
+                    <div className={`rounded-xl border border-dashed p-4 text-sm ${light ? "border-zinc-300 text-zinc-400" : "border-zinc-700 text-zinc-500"}`}>Sin fiados.</div>
                   ) : (
                     debts.map((d) => (
-                      <div key={d.id} className={`rounded-xl border p-3 ${colorMode === "color" ? "border-zinc-300 bg-white" : "border-zinc-800 bg-zinc-900/40"}`}>
+                      <div key={d.id} className={`rounded-xl border p-3 ${light ? "border-zinc-300 bg-white" : "border-zinc-700 bg-zinc-900/40"}`}>
                         <div className="flex items-start justify-between gap-3">
                           <div className="min-w-0">
                             <div className="truncate text-sm font-semibold">{d.customerName}</div>
-                            <div className={`mt-0.5 text-xs ${colorMode === "color" ? "text-zinc-500" : "text-zinc-400"}`}>{formatTimestamp(d.timestamp)}</div>
+                            <div className={`mt-0.5 text-xs ${light ? "text-zinc-500" : "text-zinc-400"}`}>{formatTimestamp(d.timestamp)}</div>
                           </div>
                           <div className="text-sm font-semibold tabular-nums">{eur(d.total)}</div>
                         </div>
-                        <div className={`mt-2 space-y-1 text-xs ${colorMode === "color" ? "text-zinc-600" : "text-zinc-300"}`}>
+                        <div className={`mt-2 space-y-1 text-xs ${light ? "text-zinc-600" : "text-zinc-300"}`}>
                           {d.items.map((it) => (
                             <div key={it.id} className="flex items-center justify-between gap-3">
                               <div className="truncate">{it.qty} × {it.name}</div>
@@ -904,12 +723,8 @@ export default function Home() {
                           ))}
                         </div>
                         <div className="mt-3 grid grid-cols-2 gap-2">
-                          <button type="button" onClick={() => markDebtPaid(d.id)} className={`rounded-xl px-3 py-3 text-sm font-semibold transition ${colorMode === "color" ? "bg-zinc-900 text-white hover:bg-zinc-800" : "bg-white text-zinc-900 hover:bg-zinc-200"}`}>
-                            Marcar pagado
-                          </button>
-                          <button type="button" onClick={() => deleteDebt(d.id)} className={`rounded-xl border px-3 py-3 text-sm font-semibold transition ${modalBorderBtn(colorMode)}`}>
-                            Borrar
-                          </button>
+                          <button type="button" onClick={() => markDebtPaid(d.id)} className={`rounded-xl px-3 py-3 text-sm font-semibold transition ${light ? "bg-zinc-900 text-white hover:bg-zinc-800" : "bg-white text-zinc-900 hover:bg-zinc-200"}`}>Marcar pagado</button>
+                          <button type="button" onClick={() => deleteDebt(d.id)} className={`rounded-xl border px-3 py-3 text-sm font-semibold transition ${modalBorderBtn(theme)}`}>Borrar</button>
                         </div>
                       </div>
                     ))
@@ -925,46 +740,26 @@ export default function Home() {
       {cajaModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-3 md:p-6">
           <div className="absolute inset-0 bg-black/50" onClick={() => setCajaModalOpen(false)} />
-          <div
-            className={`relative w-full max-w-sm rounded-2xl border p-5 shadow-xl transition-colors ${
-              colorMode === "color"
-                ? "border-zinc-300 bg-white text-black"
-                : "border-zinc-800 bg-zinc-950 text-zinc-50"
-            }`}
-          >
+          <div className={`relative w-full max-w-sm rounded-2xl border p-5 shadow-xl ${light ? "border-zinc-300 bg-white text-black" : "border-zinc-700 bg-zinc-950 text-zinc-50"}`}>
             {!cajaSession ? (
               <>
                 <div className="text-base font-semibold">Abrir caja</div>
-                <div className={`mt-1 text-sm ${colorMode === "color" ? "text-zinc-500" : "text-zinc-400"}`}>
-                  Introduce el cambio inicial que metes en la caja.
-                </div>
+                <div className={`mt-1 text-sm ${light ? "text-zinc-500" : "text-zinc-400"}`}>Introduce el cambio inicial que metes en la caja.</div>
                 <div className="mt-4">
-                  <label className={`block text-sm font-semibold ${colorMode === "color" ? "text-black" : "text-zinc-200"}`}>
-                    Cambio inicial (€)
-                  </label>
+                  <label className={`block text-sm font-semibold ${light ? "text-black" : "text-zinc-200"}`}>Cambio inicial (€)</label>
                   <input
-                    type="number"
-                    min="0"
-                    step="0.5"
+                    type="number" min="0" step="0.5"
                     value={cajaFloatInput}
                     onChange={(e) => setCajaFloatInput(e.target.value)}
                     onKeyDown={(e) => { if (e.key === "Enter") openCaja(); }}
                     placeholder="150"
-                    className={`mt-2 w-full rounded-xl border px-4 py-4 text-3xl font-semibold tabular-nums outline-none transition ${
-                      colorMode === "color"
-                        ? "border-zinc-300 bg-white text-black focus:ring-2 focus:ring-zinc-300"
-                        : "border-zinc-800 bg-zinc-900 text-zinc-50 focus:ring-2 focus:ring-zinc-700"
-                    }`}
+                    className={`mt-2 w-full rounded-xl border px-4 py-4 text-3xl font-semibold tabular-nums outline-none transition ${light ? "border-zinc-300 bg-white text-black focus:ring-2 focus:ring-zinc-300" : "border-zinc-700 bg-zinc-900 text-zinc-50 focus:ring-2 focus:ring-zinc-600"}`}
                     autoFocus
                   />
                 </div>
                 <div className="mt-4 grid grid-cols-2 gap-3">
-                  <button type="button" onClick={() => setCajaModalOpen(false)} className={`rounded-xl border px-4 py-4 text-base font-semibold transition ${modalBorderBtn(colorMode)}`}>
-                    Cancelar
-                  </button>
-                  <button type="button" onClick={openCaja} className={`rounded-xl px-4 py-4 text-base font-semibold transition ${colorMode === "color" ? "bg-zinc-900 text-white hover:bg-zinc-800" : "bg-white text-zinc-900 hover:bg-zinc-200"}`}>
-                    Abrir caja
-                  </button>
+                  <button type="button" onClick={() => setCajaModalOpen(false)} className={`rounded-xl border px-4 py-4 text-base font-semibold transition ${modalBorderBtn(theme)}`}>Cancelar</button>
+                  <button type="button" onClick={openCaja} className={`rounded-xl px-4 py-4 text-base font-semibold transition ${light ? "bg-zinc-900 text-white hover:bg-zinc-800" : "bg-white text-zinc-900 hover:bg-zinc-200"}`}>Abrir caja</button>
                 </div>
               </>
             ) : (
@@ -972,29 +767,24 @@ export default function Home() {
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <div className="text-base font-semibold">Resumen de caja</div>
-                    <div className={`mt-1 text-sm ${colorMode === "color" ? "text-zinc-500" : "text-zinc-400"}`}>
+                    <div className={`mt-1 text-sm ${light ? "text-zinc-500" : "text-zinc-400"}`}>
                       Abierta a las {new Date(cajaSession.openedAt).toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" })}
                     </div>
                   </div>
-                  <button type="button" onClick={() => setCajaModalOpen(false)} className={`rounded-lg border px-3 py-2 text-sm font-medium transition ${modalBorderBtn(colorMode)}`}>
-                    Cerrar
-                  </button>
+                  <button type="button" onClick={() => setCajaModalOpen(false)} className={`rounded-lg border px-3 py-2 text-sm font-medium transition ${modalBorderBtn(theme)}`}>Cerrar</button>
                 </div>
-
-                <div className={`mt-4 space-y-3 rounded-xl border p-4 ${colorMode === "color" ? "border-zinc-200 bg-zinc-50" : "border-zinc-800 bg-zinc-900/40"}`}>
+                <div className={`mt-4 space-y-3 rounded-xl border p-4 ${light ? "border-zinc-200 bg-zinc-50" : "border-zinc-700 bg-zinc-900/40"}`}>
                   <div className="flex items-center justify-between">
-                    <span className={`text-sm ${colorMode === "color" ? "text-zinc-500" : "text-zinc-400"}`}>Cambio puesto</span>
+                    <span className={`text-sm ${light ? "text-zinc-500" : "text-zinc-400"}`}>Cambio puesto</span>
                     <span className="text-base font-semibold tabular-nums">{eur(cajaSession.float)}</span>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className={`text-sm ${colorMode === "color" ? "text-zinc-500" : "text-zinc-400"}`}>
-                      Ventas ({sessionSales.length} tickets)
-                    </span>
+                    <span className={`text-sm ${light ? "text-zinc-500" : "text-zinc-400"}`}>Ventas ({sessionSales.length} tickets)</span>
                     <span className="text-base font-semibold tabular-nums">{eur(sessionTotal)}</span>
                   </div>
-                  <div className={`border-t ${colorMode === "color" ? "border-zinc-200" : "border-zinc-700"}`} />
+                  <div className={`border-t ${light ? "border-zinc-200" : "border-zinc-700"}`} />
                   <div className="flex items-center justify-between">
-                    <span className={`text-sm ${colorMode === "color" ? "text-zinc-500" : "text-zinc-400"}`}>Total en caja</span>
+                    <span className={`text-sm ${light ? "text-zinc-500" : "text-zinc-400"}`}>Total en caja</span>
                     <span className="text-lg font-semibold tabular-nums">{eur(cajaSession.float + sessionTotal)}</span>
                   </div>
                   <div className="flex items-center justify-between">
@@ -1002,16 +792,7 @@ export default function Home() {
                     <span className="text-3xl font-bold tabular-nums text-emerald-500">{eur(sessionTotal)}</span>
                   </div>
                 </div>
-
-                <button
-                  type="button"
-                  onClick={closeCaja}
-                  className={`mt-4 w-full rounded-xl border px-4 py-4 text-base font-semibold transition ${
-                    colorMode === "color"
-                      ? "border-red-300 text-red-600 hover:bg-red-50"
-                      : "border-red-900 text-red-400 hover:bg-red-950/40"
-                  }`}
-                >
+                <button type="button" onClick={closeCaja} className={`mt-4 w-full rounded-xl border px-4 py-4 text-base font-semibold transition ${light ? "border-red-300 text-red-600 hover:bg-red-50" : "border-red-800 text-red-400 hover:bg-red-950/40"}`}>
                   Cerrar caja y finalizar sesión
                 </button>
               </>
