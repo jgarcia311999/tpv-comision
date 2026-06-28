@@ -398,10 +398,11 @@ export default function Home() {
                     <button
                       key={p.id}
                       onClick={() => add(p.id)}
-                      className={`flex flex-col justify-between rounded-2xl border p-6 text-left transition active:scale-[0.97] ${colored || productBaseClass}`}
+                      className={`flex flex-col items-center justify-center rounded-2xl border p-4 text-center transition active:scale-[0.97] ${colored || productBaseClass}`}
                     >
                       <div className={`text-2xl font-semibold leading-snug ${!colorButtons && !light ? "text-white" : "text-zinc-900"}`}>{p.name}</div>
-                      <div className={`mt-4 text-3xl font-bold ${!colorButtons && !light ? "text-white" : "text-zinc-900"}`}>
+                      <div className={`mt-3 w-full border-t ${!colorButtons && !light ? "border-white/30" : "border-zinc-900/20"}`} />
+                      <div className={`mt-3 text-4xl font-bold ${!colorButtons && !light ? "text-white" : "text-zinc-900"}`}>
                         {eur(p.price)}
                       </div>
                     </button>
