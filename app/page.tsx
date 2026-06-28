@@ -401,7 +401,7 @@ export default function Home() {
                     }`}
                   >
                     <div className="text-2xl font-semibold leading-snug">{p.name}</div>
-                    <div className={`mt-4 text-xl font-medium ${colorMode === "color" ? "opacity-70" : "text-zinc-600 dark:text-zinc-400"}`}>
+                    <div className={`mt-4 text-3xl font-bold ${colorMode === "color" ? "opacity-70" : "text-zinc-600 dark:text-zinc-400"}`}>
                       {eur(p.price)}
                     </div>
                   </button>
