@@ -400,7 +400,7 @@ export default function Home() {
                       onClick={() => add(p.id)}
                       className={`flex flex-col justify-between rounded-2xl border p-6 text-left transition active:scale-[0.97] ${colored || productBaseClass}`}
                     >
-                      <div className="text-2xl font-semibold leading-snug text-zinc-900">{p.name}</div>
+                      <div className={`text-2xl font-semibold leading-snug ${!light || colorButtons ? "text-white" : "text-zinc-900"}`}>{p.name}</div>
                       <div className={`mt-4 text-3xl font-bold ${colored ? "opacity-70" : light ? "text-zinc-500" : "text-zinc-400"}`}>
                         {eur(p.price)}
                       </div>
